@@ -8,6 +8,8 @@ import (
 	"os"
 	"strings"
 
+	"google.golang.org/grpc/metadata"
+
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/desc/protoparse"
 	"github.com/jhump/protoreflect/dynamic"
@@ -108,9 +110,20 @@ func main() {
 	}
 	defer conn.Close()
 
+	// Build context with optional metadata
+	ctx := context.Background()
+	if raw := os.Getenv("GRPC_METADATA"); raw != "" {
+		var meta map[string]string
+		if err := json.Unmarshal([]byte(raw), &meta); err != nil {
+			log.Fatalf("GRPC_METADATA is not valid JSON: %v", err)
+		}
+		md := metadata.New(meta)
+		ctx = metadata.NewOutgoingContext(ctx, md)
+	}
+
 	// Invoke
 	stub := grpcdynamic.NewStub(conn)
-	resp, err := stub.InvokeRpc(context.Background(), methodDesc, reqMsg)
+	resp, err := stub.InvokeRpc(ctx, methodDesc, reqMsg)
 	if err != nil {
 		log.Fatalf("RPC error: %v", err)
 	}
